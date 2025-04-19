@@ -2,6 +2,7 @@
 #include "Vector3.h"
 #include <assert.h>
 #include <Novice.h>
+#include <cmath>
 
 Matrix4x4 MatrixMath::Add(const Matrix4x4& m1, const Matrix4x4& m2) {
 	Matrix4x4 result = {};
@@ -143,5 +144,38 @@ Vector3 MatrixMath::Transform(const Vector3& vector, const Matrix4x4& matrix) {
 	result.x /= w;
 	result.y /= w;
 	result.z /= w;
+	return result;
+}
+
+Matrix4x4 MatrixMath::MakeRotateXMatrix(float radian) {
+	Matrix4x4 result = {};
+	result.m[0][0] = 1.0f;
+	result.m[1][1] = std::cos(radian);
+	result.m[1][2] = std::sin(radian);
+	result.m[2][1] = -std::sin(radian);
+	result.m[2][2] = std::cos(radian);
+	result.m[3][3] = 1.0f;
+	return result;
+}
+
+Matrix4x4 MatrixMath::MakeRotateYMatrix(float radian) {
+	Matrix4x4 result = {};
+	result.m[0][0] = std::cos(radian);
+	result.m[0][2] = -std::sin(radian);
+	result.m[1][1] = 1.0f;
+	result.m[2][0] = std::sin(radian);
+	result.m[2][2] = std::cos(radian);
+	result.m[3][3] = 1.0f;
+	return result;
+}
+
+Matrix4x4 MatrixMath::MakeRotateZMatrix(float radian) {
+	Matrix4x4 result = {};
+	result.m[0][0] = std::cos(radian);
+	result.m[0][1] = std::sin(radian);
+	result.m[1][0] = -std::sin(radian);
+	result.m[1][1] = std::cos(radian);
+	result.m[2][2] = 1.0f;
+	result.m[3][3] = 1.0f;
 	return result;
 }

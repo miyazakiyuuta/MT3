@@ -2,6 +2,7 @@
 #include "Vector3.h"
 #include "Matrix4x4.h"
 #include <cmath>
+#include <imgui.h>
 
 const char kWindowTitle[] = "LE2B_24_ミヤザキ_ユウタ_タイトル";
 const int kWindowWidth = 1280; // 画面の横幅
@@ -60,7 +61,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		/// ↓更新処理ここから
 		///
 
+		// pointを線分に射影したベクトル。
+		Vector3 project = Project(Subtract(point, segment.origin), segment.diff);
 
+		Vector3 closestPoint = ClosestPoint(point, segment);
+
+		Matrix4x4 cameraMatrix = MakeAffineMatrix({ 1.0f,1.0f,1.0f }, { 0.26f,0.0f,0.0f }, { 0.0f,1.9f,-6.49f });
+		Matrix4x4 viewMatrix = Inverse(cameraMatrix);
+		Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(3.14f / 4.0f, 1280.0f / 720.0f, 0.1f, 1000.0f);
+		Matrix4x4 viewProjectionMatrix = Multiply(viewMatrix, projectionMatrix);
+		Matrix4x4 viewportMatrix = MakeViewportMatrix(0.0f, 0.0f, 1280.0f, 720.0f, 0.0f, 1.0f);
+
+		Vector3 start = Transform(Transform(segment.origin, viewProjectionMatrix), viewportMatrix);
+		Vector3 end = Transform(Transform(Add(segment.origin, segment.diff), viewProjectionMatrix), viewportMatrix);
 
 		///
 		/// ↑更新処理ここまで
@@ -69,8 +82,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///
 		/// ↓描画処理ここから
 		///
+		
+		Novice::DrawLine(int(start.x), int(start.y), int(end.x), int(end.y), WHITE);
+
+		Sphere pointSphere{ point,0.01f }; // 1cmの球を描画
+		Sphere closestPointSphere{ closestPoint,0.01f };
+		DrawSphere(pointSphere, viewProjectionMatrix, viewportMatrix, RED);
+		DrawSphere(closestPointSphere, viewProjectionMatrix, viewportMatrix, BLACK);
 
 
+		DrawGrid(viewProjectionMatrix, viewportMatrix);
+
+		ImGui::InputFloat3("Project", &project.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 
 		///
 		/// ↑描画処理ここまで
@@ -173,21 +196,21 @@ void DrawSphere(const Sphere& sphere, const Matrix4x4& viewProjectionMatrix, con
 			// world座標系でのa,b,cを求める
 			Vector3 a, b, c;
 			a = {
-				sphere.center.x + std::cos(lat) * std::cos(lon),
-				sphere.center.y + std::sin(lat),
-				sphere.center.z + std::cos(lat) * std::sin(lon)
+				sphere.center.x + (std::cos(lat) * std::cos(lon) * sphere.radius),
+				sphere.center.y + (std::sin(lat) * sphere.radius),
+				sphere.center.z + (std::cos(lat) * std::sin(lon) * sphere.radius)
 			};
 
 			b = {
-					sphere.center.x + std::cos(lat + kLatEvery) * std::cos(lon),
-					sphere.center.y + std::sin(lat + kLatEvery),
-					sphere.center.z + std::cos(lat + kLatEvery) * std::sin(lon)
+					sphere.center.x + (std::cos(lat + kLatEvery) * std::cos(lon) * sphere.radius),
+					sphere.center.y + (std::sin(lat + kLatEvery) * sphere.radius),
+					sphere.center.z + (std::cos(lat + kLatEvery) * std::sin(lon) * sphere.radius)
 			};
 
 			c = {
-				sphere.center.x + std::cos(lat) * std::cos(lon + kLonEvery),
-				sphere.center.y + std::sin(lat),
-				sphere.center.z + std::cos(lat) * std::sin(lon + kLonEvery)
+				sphere.center.x + (std::cos(lat) * std::cos(lon + kLonEvery) * sphere.radius),
+				sphere.center.y + (std::sin(lat) * sphere.radius),
+				sphere.center.z + (std::cos(lat) * std::sin(lon + kLonEvery) * sphere.radius)
 			};
 
 			// a,b,cをScreen座標系まで変換
@@ -209,7 +232,17 @@ void DrawSphere(const Sphere& sphere, const Matrix4x4& viewProjectionMatrix, con
 }
 
 Vector3 Project(const Vector3& v1, const Vector3& v2) {
-	Vector3 result = 
-		Multiply(Dot(v1, v2) * (1.0f / (v2.x * v2.x + v2.y * v2.y)), v2);
+	Vector3 result =
+		Multiply(Dot(v1, v2) * (1.0f / (v2.x * v2.x + v2.y * v2.y + v2.z * v2.z)), v2);
+	return result;
+}
+
+Vector3 ClosestPoint(const Vector3& point, const Segment& segment) {
+	Vector3 result;
+	Vector3 project = Project(
+		{ point.x - segment.origin.x,point.y - segment.origin.y,point.z - segment.origin.z }, segment.diff);
+	result.x = segment.origin.x + project.x;
+	result.y = segment.origin.y + project.y;
+	result.z = segment.origin.z + project.z;
 	return result;
 }

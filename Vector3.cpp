@@ -22,6 +22,7 @@ Vector3 Vector3Math::Multiply(float scalar, const Vector3& v) {
 	Vector3 result = {};
 	result.x = v.x * scalar;
 	result.y = v.y * scalar;
+	result.z = v.z * scalar;
 	return result;
 }
 

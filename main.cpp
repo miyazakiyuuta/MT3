@@ -1,15 +1,37 @@
 #include <Novice.h>
 #include "Vector3.h"
 #include "Matrix4x4.h"
+#include <cmath>
 
 const char kWindowTitle[] = "LE2B_24_ミヤザキ_ユウタ_タイトル";
 const int kWindowWidth = 1280; // 画面の横幅
 const int kWindowHeight = 720; // 画面の縦幅
 
+const float pi = 3.14159265f;
+
+using namespace MatrixMath;
+using namespace Vector3Math;
+
+struct Sphere {
+	Vector3 center; //!< 中心点
+	float radius; //!< 半径
+};
+
+struct Segment {
+	Vector3 origin; //!< 始点
+	Vector3 diff; //!< 終点への差分ベクトル
+};
+
 static const int kRowHeight = 20;
 static const int kColumnWidth = 60;
 void VectorScreenPrintf(int x, int y, const Vector3& vector, const char* label);
 void MatrixScreenPrintf(int x, int y, const Matrix4x4& matrix, const char type[]);
+
+void DrawGrid(const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix);
+void DrawSphere(const Sphere& sphere, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, unsigned int color);
+
+Vector3 Project(const Vector3& v1, const Vector3& v2);
+Vector3 ClosestPoint(const Vector3& point, const Segment& segment);
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
@@ -78,4 +100,122 @@ void MatrixScreenPrintf(int x, int y, const Matrix4x4& matrix, const char type[]
 			Novice::ScreenPrintf(x + column * kColumnWidth, y + (row + 1) * kRowHeight, "%6.02f", matrix.m[row][column]);
 		}
 	}
+}
+
+void DrawGrid(const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix) {
+	const float kGridHalfWidth = 2.0f; // Gridの半分の幅
+	const int kSubdivision = 10; // 分割数
+	const float kGridEvery = (kGridHalfWidth * 2.0f) / float(kSubdivision); // 1つ分の長さ
+	// 奥から手前への線を順々に引いていく
+	for (int xIndex = 0; xIndex <= kSubdivision; ++xIndex) {
+		// 上の情報を使ってワールド座標系上の始点と終点を求める
+		// スクリーン座標系まで変換をかける
+		// 変換した座標を使って表示。色は薄い灰色(0xAAAAAAFF)、原点は黒ぐらいが良いが、何でも良い
+
+		float x = -kGridHalfWidth + xIndex * kGridEvery;
+
+		Vector3 start = { x,0.0f,-kGridHalfWidth };
+		Vector3 end = { x,0.0f,kGridHalfWidth };
+
+		Vector3 startClip = Transform(start, viewProjectionMatrix);
+		Vector3 endClip = Transform(end, viewProjectionMatrix);
+
+		Vector3 startScreen = Transform(startClip, viewportMatrix);
+		Vector3 endScreen = Transform(endClip, viewportMatrix);
+
+		unsigned int color;
+		if (xIndex == kSubdivision / 2) {
+			color = 0x000000FF;
+		} else {
+			color = 0xAAAAAAFF;
+		}
+
+		Novice::DrawLine(int(startScreen.x), int(startScreen.y), int(endScreen.x), int(endScreen.y), color);
+	}
+	// 左から右も同じように徐々に引いていく
+	for (int zIndex = 0; zIndex <= kSubdivision; ++zIndex) {
+		float z = -kGridHalfWidth + zIndex * kGridEvery;
+		Vector3 start = { -kGridHalfWidth,0.0f,z };
+		Vector3 end = { kGridHalfWidth,0.0f,z };
+
+		Vector3 startClip = Transform(start, viewProjectionMatrix);
+		Vector3 endClip = Transform(end, viewProjectionMatrix);
+
+		Vector3 startScreen = Transform(startClip, viewportMatrix);
+		Vector3 endScreen = Transform(endClip, viewportMatrix);
+
+		unsigned int color;
+		if (zIndex == kSubdivision / 2) {
+			color = 0x000000FF;
+		} else {
+			color = 0xAAAAAAFF;
+		}
+
+		Novice::DrawLine(int(startScreen.x), int(startScreen.y), int(endScreen.x), int(endScreen.y), color);
+	}
+}
+
+void DrawSphere(const Sphere& sphere, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, unsigned int color) {
+	const unsigned int kSubdivision = 10; // 分割数
+	const float kLonEvery = 2.0f * pi / float(kSubdivision); // 経度分割1つ分の角度
+	const float kLatEvery = pi / float(kSubdivision); // 緯度分割1つ分の角度
+	// 緯度の方向に分割 -π/2~π/2
+	for (int latIndex = 0; latIndex < kSubdivision; ++latIndex) {
+		//float lat = -pi / 2.0f + kLatEvery * latIndex; // 現在の緯度
+		float lat = -pi / 2.0f + kLatEvery * latIndex; // 現在の緯度
+		// 緯度の方向に分割 0 ~ 2π
+		for (int lonIndex = 0; lonIndex < kSubdivision; ++lonIndex) {
+			float lon = kLonEvery * lonIndex; // 現在の経度
+			// world座標系でのa,b,cを求める
+			Vector3 a, b, c;
+			a = {
+				sphere.center.x + (std::cos(lat) * std::cos(lon) * sphere.radius),
+				sphere.center.y + (std::sin(lat) * sphere.radius),
+				sphere.center.z + (std::cos(lat) * std::sin(lon) * sphere.radius)
+			};
+
+			b = {
+					sphere.center.x + (std::cos(lat + kLatEvery) * std::cos(lon) * sphere.radius),
+					sphere.center.y + (std::sin(lat + kLatEvery) * sphere.radius),
+					sphere.center.z + (std::cos(lat + kLatEvery) * std::sin(lon) * sphere.radius)
+			};
+
+			c = {
+				sphere.center.x + (std::cos(lat) * std::cos(lon + kLonEvery) * sphere.radius),
+				sphere.center.y + (std::sin(lat) * sphere.radius),
+				sphere.center.z + (std::cos(lat) * std::sin(lon + kLonEvery) * sphere.radius)
+			};
+
+			// a,b,cをScreen座標系まで変換
+
+			Vector3 aClip = Transform(a, viewProjectionMatrix);
+			Vector3 bClip = Transform(b, viewProjectionMatrix);
+			Vector3 cClip = Transform(c, viewProjectionMatrix);
+
+			Vector3 aScreen = Transform(aClip, viewportMatrix);
+			Vector3 bScreen = Transform(bClip, viewportMatrix);
+			Vector3 cScreen = Transform(cClip, viewportMatrix);
+
+			// ab,bcで線を引く
+			Novice::DrawLine(int(aScreen.x), int(aScreen.y), int(bScreen.x), int(bScreen.y), color);
+			Novice::DrawLine(int(aScreen.x), int(aScreen.y), int(cScreen.x), int(cScreen.y), color);
+
+		}
+	}
+}
+
+Vector3 Project(const Vector3& v1, const Vector3& v2) {
+	Vector3 result =
+		Multiply(Dot(v1, v2) * (1.0f / (v2.x * v2.x + v2.y * v2.y + v2.z * v2.z)), v2);
+	return result;
+}
+
+Vector3 ClosestPoint(const Vector3& point, const Segment& segment) {
+	Vector3 result;
+	Vector3 project = Project(
+		{ point.x - segment.origin.x,point.y - segment.origin.y,point.z - segment.origin.z }, segment.diff);
+	result.x = segment.origin.x + project.x;
+	result.y = segment.origin.y + project.y;
+	result.z = segment.origin.z + project.z;
+	return result;
 }

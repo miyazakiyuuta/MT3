@@ -22,6 +22,11 @@ struct Segment {
 	Vector3 diff; //!< 終点への差分ベクトル
 };
 
+struct Plane {
+	Vector3 normal; //!< 法線
+	float distance; //!< 距離
+};
+
 static const int kRowHeight = 20;
 static const int kColumnWidth = 60;
 void VectorScreenPrintf(int x, int y, const Vector3& vector, const char* label);
@@ -32,6 +37,14 @@ void DrawSphere(const Sphere& sphere, const Matrix4x4& viewProjectionMatrix, con
 
 Vector3 Project(const Vector3& v1, const Vector3& v2);
 Vector3 ClosestPoint(const Vector3& point, const Segment& segment);
+
+bool IsCollision(const Sphere& s1, const Sphere& s2);
+bool IsCollision(const Sphere& sphere, const Plane& plane);
+
+Vector3 Perpendicular(const Vector3& vector);
+
+void DrawPlane(const Plane& plane, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
+
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
@@ -218,4 +231,54 @@ Vector3 ClosestPoint(const Vector3& point, const Segment& segment) {
 	result.y = segment.origin.y + project.y;
 	result.z = segment.origin.z + project.z;
 	return result;
+}
+
+bool IsCollision(const Sphere& s1, const Sphere& s2) {
+	if (Length({ s1.center.x - s2.center.x,s1.center.y - s2.center.y ,s1.center.z - s2.center.z })
+		< s1.radius + s2.radius) {
+		return true;
+	}
+	return false;
+}
+
+bool IsCollision(const Sphere& sphere, const Plane& plane) {
+	// 球の中心位置と平面の法線ベクトルとの内積
+	float d = sphere.center.x * plane.normal.x +
+		sphere.center.y * plane.normal.y +
+		sphere.center.z * plane.normal.z;
+
+	// 球の中心から平面までの距離（符号付き）
+	float distance = fabs(d - plane.distance);
+
+	if (distance < sphere.radius) {
+		return true;
+	}
+	return false;
+}
+
+Vector3 Perpendicular(const Vector3& vector) {
+	if (vector.x != 0.0f || vector.y != 0.0f) {
+		return { -vector.y,vector.x,0.0f };
+	}
+	return { 0.0f,-vector.z,vector.y };
+}
+
+void DrawPlane(const Plane& plane, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color) {
+	Vector3 center = Multiply(plane.distance, plane.normal); // 1.中心点を決める
+	Vector3 perpendiculars[4];
+	perpendiculars[0] = Normalize(Perpendicular(plane.normal)); // 2.法線と垂直なベクトル
+	perpendiculars[1] = { -perpendiculars[0].x,-perpendiculars[0].y,-perpendiculars[0].z }; // 3.2の逆ベクトル
+	perpendiculars[2] = Cross(plane.normal, perpendiculars[0]); // 4.2と法線とのクロス積を求める
+	perpendiculars[3] = { -perpendiculars[2].x,-perpendiculars[2].y, -perpendiculars[2].z }; // 5.4の逆ベクトル
+	// 6
+	Vector3 points[4];
+	for (int index = 0; index < 4; index++) {
+		Vector3 extend = Multiply(2.0f, perpendiculars[index]);
+		Vector3 point = Add(center, extend);
+		points[index] = Transform(Transform(point, viewProjectionMatrix), viewportMatrix);
+	}
+	Novice::DrawLine(int(points[0].x), int(points[0].y), int(points[2].x), int(points[2].y), color);
+	Novice::DrawLine(int(points[0].x), int(points[0].y), int(points[3].x), int(points[3].y), color);
+	Novice::DrawLine(int(points[1].x), int(points[1].y), int(points[2].x), int(points[2].y), color);
+	Novice::DrawLine(int(points[1].x), int(points[1].y), int(points[3].x), int(points[3].y), color);
 }

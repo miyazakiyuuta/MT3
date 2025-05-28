@@ -2,6 +2,7 @@
 #include "Vector3.h"
 #include "Matrix4x4.h"
 #include <cmath>
+#include <imgui.h>
 
 const char kWindowTitle[] = "LE2B_24_ミヤザキ_ユウタ_タイトル";
 const int kWindowWidth = 1280; // 画面の横幅
@@ -20,6 +21,7 @@ struct Sphere {
 struct Segment {
 	Vector3 origin; //!< 始点
 	Vector3 diff; //!< 終点への差分ベクトル
+	uint32_t color;
 };
 
 struct Plane {
@@ -45,6 +47,7 @@ Vector3 Perpendicular(const Vector3& vector);
 
 void DrawPlane(const Plane& plane, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 
+bool IsCollision(const Segment& segment, const Plane& plane);
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
@@ -53,8 +56,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Novice::Initialize(kWindowTitle, kWindowWidth, kWindowHeight);
 
 	// キー入力結果を受け取る箱
-	char keys[256] = {0};
-	char preKeys[256] = {0};
+	char keys[256] = { 0 };
+	char preKeys[256] = { 0 };
+
+	Vector3 cameraTranslate = { 0.0f,1.9f,-6.49f };
+	Vector3 cameraRotate = { 0.26f,0.0f,0.0f };
+
+	Segment segment = {
+		{0.0f,0.0f,0.0f},
+		{0.5f,0.5f,0.5f},
+		WHITE
+	};
+
+	Plane plane = {
+		{0.0f,1.0f,0.0f},1.0f
+	};
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
@@ -69,7 +85,30 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		/// ↓更新処理ここから
 		///
 
+		Matrix4x4 cameraMatrix = MakeAffineMatrix({ 1.0f,1.0f,1.0f }, cameraRotate, cameraTranslate);
+		Matrix4x4 viewMatrix = Inverse(cameraMatrix);
+		Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(3.14f / 4.0f, 1280.0f / 720.0f, 0.1f, 1000.0f);
+		Matrix4x4 viewProjectionMatrix = Multiply(viewMatrix, projectionMatrix);
+		Matrix4x4 viewportMatrix = MakeViewportMatrix(0.0f, 0.0f, 1280.0f, 720.0f, 0.0f, 1.0f);
 
+		Vector3 start = Transform(Transform(segment.origin, viewProjectionMatrix), viewportMatrix);
+		Vector3 end = Transform(Transform(Add(segment.diff, segment.origin), viewProjectionMatrix), viewportMatrix);
+
+		if (IsCollision(segment, plane)) {
+			segment.color = RED;
+		} else {
+			segment.color = WHITE;
+		}
+
+		ImGui::Begin("Window");
+		ImGui::DragFloat3("CameraTranslate", &cameraTranslate.x, 0.01f);
+		ImGui::DragFloat3("CameraRotate", &cameraRotate.x, 0.01f);
+		ImGui::DragFloat3("Segment.origin", &segment.origin.x, 0.01f);
+		ImGui::DragFloat3("Segment.diff", &segment.diff.x, 0.01f);
+		ImGui::DragFloat3("Plane.Normal", &plane.normal.x, 0.01f);
+		plane.normal = Normalize(plane.normal);
+		ImGui::DragFloat("Plane.distance", &plane.distance, 0.01f);
+		ImGui::End();
 
 		///
 		/// ↑更新処理ここまで
@@ -79,7 +118,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		/// ↓描画処理ここから
 		///
 
+		Novice::DrawLine(
+			int(start.x), int(start.y),
+			int(end.x), int(end.y), segment.color);
 
+		DrawPlane(plane, viewProjectionMatrix, viewportMatrix, WHITE);
 
 		///
 		/// ↑描画処理ここまで
@@ -281,4 +324,20 @@ void DrawPlane(const Plane& plane, const Matrix4x4& viewProjectionMatrix, const 
 	Novice::DrawLine(int(points[0].x), int(points[0].y), int(points[3].x), int(points[3].y), color);
 	Novice::DrawLine(int(points[1].x), int(points[1].y), int(points[2].x), int(points[2].y), color);
 	Novice::DrawLine(int(points[1].x), int(points[1].y), int(points[3].x), int(points[3].y), color);
+}
+
+bool IsCollision(const Segment& segment, const Plane& plane) {
+	float dot = Dot(plane.normal, segment.diff);
+
+	// 垂直=平行であるので、衝突していない
+	if (dot == 0.0f) {
+		return false;
+	}
+
+	float t = (plane.distance - Dot(segment.origin, plane.normal)) / (Dot(segment.diff, plane.normal));
+
+	if (t <= 1.0f && t >= 0.0f) {
+		return true;
+	}
+	return false;
 }

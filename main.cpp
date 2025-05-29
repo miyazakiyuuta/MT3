@@ -91,15 +91,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		Matrix4x4 viewProjectionMatrix = Multiply(viewMatrix, projectionMatrix);
 		Matrix4x4 viewportMatrix = MakeViewportMatrix(0.0f, 0.0f, 1280.0f, 720.0f, 0.0f, 1.0f);
 
-		Vector3 start = Transform(Transform(segment.origin, viewProjectionMatrix), viewportMatrix);
-		Vector3 end = Transform(Transform(Add(segment.diff, segment.origin), viewProjectionMatrix), viewportMatrix);
-
-		if (IsCollision(segment, plane)) {
-			segment.color = RED;
-		} else {
-			segment.color = WHITE;
-		}
-
 		ImGui::Begin("Window");
 		ImGui::DragFloat3("CameraTranslate", &cameraTranslate.x, 0.01f);
 		ImGui::DragFloat3("CameraRotate", &cameraRotate.x, 0.01f);

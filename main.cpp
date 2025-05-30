@@ -33,6 +33,12 @@ struct Triangle {
 	Vector3 vertices[3]; //!< 頂点
 };
 
+struct AABB {
+	Vector3 min; //!< 最小点
+	Vector3 max; //!< 最大点
+	uint32_t color;
+};
+
 static const int kRowHeight = 20;
 static const int kColumnWidth = 60;
 void VectorScreenPrintf(int x, int y, const Vector3& vector, const char* label);
@@ -57,6 +63,10 @@ bool IsCollision(const Triangle& triangle, const Segment& segment);
 
 void DrawTriangle(const Triangle& triangle, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 
+bool IsCollision(const AABB& aabb1, const AABB& aabb2);
+
+void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
+
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
@@ -70,20 +80,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Vector3 cameraTranslate = { 0.0f,1.9f,-6.49f };
 	Vector3 cameraRotate = { 0.26f,0.0f,0.0f };
 
-	Segment segment = {
-		{0.0f,0.0f,0.0f},
-		{0.5f,0.5f,0.5f},
-		WHITE
+	AABB aabb1{
+		.min{-0.5f,-0.5f,-0.5f},
+		.max{0.0f,0.0f,0.0f},
+		.color{WHITE},
 	};
 
-	Plane plane = {
-		{0.0f,1.0f,0.0f},1.0f
+	AABB aabb2{
+		.min{0.2f,0.2f,0.2f},
+		.max{1.0f,1.0f,1.0f},
+		.color{WHITE},
 	};
-
-	Triangle triangle;
-	triangle.vertices[0] = { -1.0f,0.0f,0.0f };
-	triangle.vertices[1] = { 1.0f,0.0f,0.0f };
-	triangle.vertices[2] = { 0.0f,1.0f,0.0f };
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
@@ -104,24 +111,27 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		Matrix4x4 viewProjectionMatrix = Multiply(viewMatrix, projectionMatrix);
 		Matrix4x4 viewportMatrix = MakeViewportMatrix(0.0f, 0.0f, 1280.0f, 720.0f, 0.0f, 1.0f);
 
-		if (IsCollision(triangle, segment)) {
-			segment.color = RED;
-		} else {
-			segment.color = WHITE;
-		}
-
-		Vector3 start = Transform(Transform(segment.origin, viewProjectionMatrix), viewportMatrix);
-		Vector3 end = Transform(Transform(Add(segment.origin, segment.diff), viewProjectionMatrix), viewportMatrix);
-
 		ImGui::Begin("Window");
 		ImGui::DragFloat3("CameraTranslate", &cameraTranslate.x, 0.01f);
 		ImGui::DragFloat3("CameraRotate", &cameraRotate.x, 0.01f);
-		ImGui::DragFloat3("Segment.origin", &segment.origin.x, 0.01f);
-		ImGui::DragFloat3("Segment.diff", &segment.diff.x, 0.01f);
-		ImGui::DragFloat3("Plane.Normal", &plane.normal.x, 0.01f);
-		plane.normal = Normalize(plane.normal);
-		ImGui::DragFloat("Plane.distance", &plane.distance, 0.01f);
+		ImGui::DragFloat3("aabb1.min", &aabb1.min.x, 0.01f);
+		ImGui::DragFloat3("aabb1.max", &aabb1.max.x, 0.01f);
+		ImGui::DragFloat3("aabb2.min", &aabb2.min.x, 0.01f);
+		ImGui::DragFloat3("aabb2.max", &aabb2.max.x, 0.01f);
 		ImGui::End();
+
+		aabb1.min.x = (std::fmin)(aabb1.min.x, aabb1.max.x);
+		aabb1.max.x = (std::fmax)(aabb1.min.x, aabb1.max.x);
+		aabb1.min.y = (std::fmin)(aabb1.min.y, aabb1.max.y);
+		aabb1.max.y = (std::fmax)(aabb1.min.y, aabb1.max.y);
+		aabb1.min.z = (std::fmin)(aabb1.min.z, aabb1.max.z);
+		aabb1.max.z = (std::fmax)(aabb1.min.z, aabb1.max.z);
+
+		if (IsCollision(aabb1, aabb2)) {
+			aabb2.color = RED;
+		} else {
+			aabb2.color = WHITE;
+		}
 
 		///
 		/// ↑更新処理ここまで
@@ -131,13 +141,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		/// ↓描画処理ここから
 		///
 
-		Novice::DrawLine(
-			int(start.x), int(start.y),
-			int(end.x), int(end.y), segment.color);
-
-		DrawTriangle(triangle, viewProjectionMatrix, viewportMatrix, WHITE);
-
-		//DrawPlane(plane, viewProjectionMatrix, viewportMatrix, WHITE);
+		DrawAABB(aabb1, viewProjectionMatrix, viewportMatrix, aabb1.color);
+		DrawAABB(aabb2, viewProjectionMatrix, viewportMatrix, aabb2.color);
 
 		///
 		/// ↑描画処理ここまで
@@ -400,5 +405,44 @@ void DrawTriangle(const Triangle& triangle, const Matrix4x4& viewProjectionMatri
 		Novice::DrawLine(
 			int(screenTriangle.vertices[i % 3].x), int(screenTriangle.vertices[i % 3].y),
 			int(screenTriangle.vertices[(i + 1) % 3].x), int(screenTriangle.vertices[(i + 1) % 3].y), color);
+	}
+}
+
+bool IsCollision(const AABB& aabb1, const AABB& aabb2) {
+	if (aabb1.min.x <= aabb2.max.x && aabb1.max.x >= aabb2.min.x && // x軸
+		aabb1.min.y <= aabb2.max.y && aabb1.max.y >= aabb2.min.y && // y軸
+		aabb1.min.z <= aabb2.max.z && aabb1.max.z >= aabb2.min.z) { // z軸
+		return true;
+	}
+	return false;
+}
+
+void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color) {
+	Vector3 vertex[8];
+	vertex[0] = aabb.min;
+	vertex[1] = { aabb.max.x,aabb.min.y,aabb.min.z };
+	vertex[2] = { aabb.max.x,aabb.min.y,aabb.max.z };
+	vertex[3] = { aabb.min.x,aabb.min.y,aabb.max.z };
+	vertex[4] = { aabb.min.x,aabb.max.y,aabb.min.z };
+	vertex[5] = { aabb.max.x,aabb.max.y,aabb.min.z };
+	vertex[6] = aabb.max;
+	vertex[7] = { aabb.min.x,aabb.max.y,aabb.max.z };
+	Vector3 screenVertex[8];
+	for (int i = 0; i < 8; i++) {
+		screenVertex[i] = Transform(Transform(vertex[i], viewProjectionMatrix), viewportMatrix);
+	}
+	for (int i = 0; i < 4; i++) {
+		Novice::DrawLine(
+			int(screenVertex[i].x), int(screenVertex[i].y),
+			int(screenVertex[(i + 1) % 4].x), int(screenVertex[(i + 1) % 4].y),
+			color);
+		Novice::DrawLine(
+			int(screenVertex[i + 4].x), int(screenVertex[i + 4].y),
+			int(screenVertex[(i + 1) % 4 + 4].x), int(screenVertex[(i + 1) % 4 + 4].y),
+			color);
+		Novice::DrawLine(
+			int(screenVertex[i].x), int(screenVertex[i].y),
+			int(screenVertex[i + 4].x), int(screenVertex[i + 4].y),
+			color);
 	}
 }

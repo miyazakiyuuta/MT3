@@ -29,6 +29,10 @@ struct Plane {
 	float distance; //!< 距離
 };
 
+struct Triangle {
+	Vector3 vertices[3]; //!< 頂点
+};
+
 static const int kRowHeight = 20;
 static const int kColumnWidth = 60;
 void VectorScreenPrintf(int x, int y, const Vector3& vector, const char* label);
@@ -48,6 +52,10 @@ Vector3 Perpendicular(const Vector3& vector);
 void DrawPlane(const Plane& plane, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 
 bool IsCollision(const Segment& segment, const Plane& plane);
+
+bool IsCollision(const Triangle& triangle, const Segment& segment);
+
+void DrawTriangle(const Triangle& triangle, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
@@ -72,6 +80,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		{0.0f,1.0f,0.0f},1.0f
 	};
 
+	Triangle triangle;
+	triangle.vertices[0] = { -1.0f,0.0f,0.0f };
+	triangle.vertices[1] = { 1.0f,0.0f,0.0f };
+	triangle.vertices[2] = { 0.0f,1.0f,0.0f };
+
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
 		// フレームの開始
@@ -90,6 +103,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(3.14f / 4.0f, 1280.0f / 720.0f, 0.1f, 1000.0f);
 		Matrix4x4 viewProjectionMatrix = Multiply(viewMatrix, projectionMatrix);
 		Matrix4x4 viewportMatrix = MakeViewportMatrix(0.0f, 0.0f, 1280.0f, 720.0f, 0.0f, 1.0f);
+
+		if (IsCollision(triangle, segment)) {
+			segment.color = RED;
+		} else {
+			segment.color = WHITE;
+		}
+
+		Vector3 start = Transform(Transform(segment.origin, viewProjectionMatrix), viewportMatrix);
+		Vector3 end = Transform(Transform(Add(segment.origin, segment.diff), viewProjectionMatrix), viewportMatrix);
 
 		ImGui::Begin("Window");
 		ImGui::DragFloat3("CameraTranslate", &cameraTranslate.x, 0.01f);
@@ -113,7 +135,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			int(start.x), int(start.y),
 			int(end.x), int(end.y), segment.color);
 
-		DrawPlane(plane, viewProjectionMatrix, viewportMatrix, WHITE);
+		DrawTriangle(triangle, viewProjectionMatrix, viewportMatrix, WHITE);
+
+		//DrawPlane(plane, viewProjectionMatrix, viewportMatrix, WHITE);
 
 		///
 		/// ↑描画処理ここまで
@@ -331,4 +355,50 @@ bool IsCollision(const Segment& segment, const Plane& plane) {
 		return true;
 	}
 	return false;
+}
+
+bool IsCollision(const Triangle& triangle, const Segment& segment) {
+	// 三角形の法線
+	Vector3 normal = Cross(
+		Subtract(triangle.vertices[1], triangle.vertices[0]),
+		Subtract(triangle.vertices[2], triangle.vertices[0]));
+	float dot = Dot(normal, segment.diff);
+	if (dot == 0.0f) {
+		return false;
+	}
+	float t = Dot(Subtract(triangle.vertices[0], segment.origin), normal) / dot;
+	if (t < 0.0f || t>1.0f) {
+		return false;
+	}
+
+	Vector3 p = Add(segment.origin, Multiply(t, segment.diff));
+
+	Vector3 cross01 = Cross(
+		Subtract(triangle.vertices[0], triangle.vertices[1]),
+		Subtract(triangle.vertices[1], p));
+	Vector3 cross12 = Cross(
+		Subtract(triangle.vertices[1], triangle.vertices[2]),
+		Subtract(triangle.vertices[2], p));
+	Vector3 cross20 = Cross(
+		Subtract(triangle.vertices[2], triangle.vertices[0]),
+		Subtract(triangle.vertices[0], p));
+
+	if (Dot(cross01, normal) >= 0.0f &&
+		Dot(cross12, normal) >= 0.0f &&
+		Dot(cross20, normal) >= 0.0f) {
+		return true;
+	}
+	return false;
+}
+
+void DrawTriangle(const Triangle& triangle, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color) {
+	Triangle screenTriangle;
+	screenTriangle.vertices[0] = Transform(Transform(triangle.vertices[0], viewProjectionMatrix), viewportMatrix);
+	screenTriangle.vertices[1] = Transform(Transform(triangle.vertices[1], viewProjectionMatrix), viewportMatrix);
+	screenTriangle.vertices[2] = Transform(Transform(triangle.vertices[2], viewProjectionMatrix), viewportMatrix);
+	for (int i = 0; i < 3; i++) {
+		Novice::DrawLine(
+			int(screenTriangle.vertices[i % 3].x), int(screenTriangle.vertices[i % 3].y),
+			int(screenTriangle.vertices[(i + 1) % 3].x), int(screenTriangle.vertices[(i + 1) % 3].y), color);
+	}
 }

@@ -127,6 +127,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		aabb1.min.z = (std::fmin)(aabb1.min.z, aabb1.max.z);
 		aabb1.max.z = (std::fmax)(aabb1.min.z, aabb1.max.z);
 
+		aabb2.min.x = (std::fmin)(aabb2.min.x, aabb2.max.x);
+		aabb2.max.x = (std::fmax)(aabb2.min.x, aabb2.max.x);
+		aabb2.min.y = (std::fmin)(aabb2.min.y, aabb2.max.y);
+		aabb2.max.y = (std::fmax)(aabb2.min.y, aabb2.max.y);
+		aabb2.min.z = (std::fmin)(aabb2.min.z, aabb2.max.z);
+		aabb2.max.z = (std::fmax)(aabb2.min.z, aabb2.max.z);
+
 		if (IsCollision(aabb1, aabb2)) {
 			aabb2.color = RED;
 		} else {

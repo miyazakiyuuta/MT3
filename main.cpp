@@ -3,6 +3,7 @@
 #include "Matrix4x4.h"
 #include <cmath>
 #include <imgui.h>
+#include <algorithm>
 
 const char kWindowTitle[] = "LE2B_24_ミヤザキ_ユウタ_タイトル";
 const int kWindowWidth = 1280; // 画面の横幅
@@ -67,6 +68,8 @@ bool IsCollision(const AABB& aabb1, const AABB& aabb2);
 
 void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 
+bool IsCollision(const AABB& aabb, const Sphere& sphere);
+
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
@@ -80,15 +83,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Vector3 cameraTranslate = { 0.0f,1.9f,-6.49f };
 	Vector3 cameraRotate = { 0.26f,0.0f,0.0f };
 
-	AABB aabb1{
+	Sphere sphere = { {0.0f,0.0f,0.0f},0.5f };
+
+	AABB aabb{
 		.min{-0.5f,-0.5f,-0.5f},
 		.max{0.0f,0.0f,0.0f},
-		.color{WHITE},
-	};
-
-	AABB aabb2{
-		.min{0.2f,0.2f,0.2f},
-		.max{1.0f,1.0f,1.0f},
 		.color{WHITE},
 	};
 
@@ -114,23 +113,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		ImGui::Begin("Window");
 		ImGui::DragFloat3("CameraTranslate", &cameraTranslate.x, 0.01f);
 		ImGui::DragFloat3("CameraRotate", &cameraRotate.x, 0.01f);
-		ImGui::DragFloat3("aabb1.min", &aabb1.min.x, 0.01f);
-		ImGui::DragFloat3("aabb1.max", &aabb1.max.x, 0.01f);
-		ImGui::DragFloat3("aabb2.min", &aabb2.min.x, 0.01f);
-		ImGui::DragFloat3("aabb2.max", &aabb2.max.x, 0.01f);
+		ImGui::DragFloat3("aabb.min", &aabb.min.x, 0.01f);
+		ImGui::DragFloat3("aabb.max", &aabb.max.x, 0.01f);
+		ImGui::DragFloat3("sphere.center", &sphere.center.x, 0.01f);
+		ImGui::DragFloat("sphere.radius", &sphere.radius, 0.01f);
 		ImGui::End();
 
-		aabb1.min.x = (std::fmin)(aabb1.min.x, aabb1.max.x);
-		aabb1.max.x = (std::fmax)(aabb1.min.x, aabb1.max.x);
-		aabb1.min.y = (std::fmin)(aabb1.min.y, aabb1.max.y);
-		aabb1.max.y = (std::fmax)(aabb1.min.y, aabb1.max.y);
-		aabb1.min.z = (std::fmin)(aabb1.min.z, aabb1.max.z);
-		aabb1.max.z = (std::fmax)(aabb1.min.z, aabb1.max.z);
+		aabb.min.x = (std::fmin)(aabb.min.x, aabb.max.x);
+		aabb.max.x = (std::fmax)(aabb.min.x, aabb.max.x);
+		aabb.min.y = (std::fmin)(aabb.min.y, aabb.max.y);
+		aabb.max.y = (std::fmax)(aabb.min.y, aabb.max.y);
+		aabb.min.z = (std::fmin)(aabb.min.z, aabb.max.z);
+		aabb.max.z = (std::fmax)(aabb.min.z, aabb.max.z);
 
-		if (IsCollision(aabb1, aabb2)) {
-			aabb2.color = RED;
+		if (IsCollision(aabb, sphere)) {
+			aabb.color = RED;
 		} else {
-			aabb2.color = WHITE;
+			aabb.color = WHITE;
 		}
 
 		///
@@ -141,8 +140,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		/// ↓描画処理ここから
 		///
 
-		DrawAABB(aabb1, viewProjectionMatrix, viewportMatrix, aabb1.color);
-		DrawAABB(aabb2, viewProjectionMatrix, viewportMatrix, aabb2.color);
+		DrawGrid(viewProjectionMatrix, viewportMatrix);
+
+		DrawSphere(sphere, viewProjectionMatrix, viewportMatrix, WHITE);
+
+		DrawAABB(aabb, viewProjectionMatrix, viewportMatrix, aabb.color);
 
 		///
 		/// ↑描画処理ここまで
@@ -445,4 +447,20 @@ void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Mat
 			int(screenVertex[i + 4].x), int(screenVertex[i + 4].y),
 			color);
 	}
+}
+
+bool IsCollision(const AABB& aabb, const Sphere& sphere) {
+	// 最近接点を求める
+	Vector3 closestPoint{
+		std::clamp(sphere.center.x,aabb.min.x,aabb.max.x),
+		std::clamp(sphere.center.y,aabb.min.y,aabb.max.y),
+		std::clamp(sphere.center.z,aabb.min.z,aabb.max.z),
+	};
+	// 最近接点と球の中心との距離を求める
+	float distance = Length(Subtract(closestPoint, sphere.center));
+	// 距離が半径よりも小さければ衝突
+	if (distance <= sphere.radius) {
+		return true;
+	}
+	return false;
 }

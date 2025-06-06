@@ -82,6 +82,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	char keys[256] = { 0 };
 	char preKeys[256] = { 0 };
 
+	int mouseX;
+	int mouseY;
+	int prevMouseX = 0;
+	int prevMouseY = 0;
+
 	Vector3 cameraTranslate = { 0.0f,1.9f,-6.49f };
 	Vector3 cameraRotate = { 0.26f,0.0f,0.0f };
 
@@ -129,6 +134,28 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		ImGui::DragFloat3("segment.origin", &segment.origin.x, 0.01f);
 		ImGui::DragFloat3("segment.diff", &segment.diff.x, 0.01f);
 		ImGui::End();
+
+		// カメラ
+		Novice::GetMousePosition(&mouseX, &mouseY);
+		if (Novice::IsPressMouse(0)) {
+
+			// マウスの移動量(
+			int deltaX = mouseX - prevMouseX;
+			int deltaY = mouseY - prevMouseY;
+			// 感度
+			float sensitivity = 0.001f;
+			// カメラの回転に反映
+			cameraRotate.y += float(deltaX) * sensitivity;
+			cameraRotate.x += float(deltaY) * sensitivity;
+		}
+		// 現在のマウス位置を保存
+		prevMouseX = mouseX;
+		prevMouseY = mouseY;
+
+		float speed = float(Novice::GetWheel()) * 0.01f;
+		Vector3 direction = { cameraRotate.y,cameraRotate.z,cameraRotate.x };
+
+		cameraTranslate = Add(cameraTranslate, Multiply(speed, direction));
 
 		aabb.min.x = min(aabb.min.x, aabb.max.x);
 		aabb.max.x = max(aabb.min.x, aabb.max.x);

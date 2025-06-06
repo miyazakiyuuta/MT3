@@ -70,6 +70,8 @@ void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Mat
 
 bool IsCollision(const AABB& aabb, const Sphere& sphere);
 
+bool IsCollision(const AABB& aabb, const Segment& segment);
+
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
@@ -83,11 +85,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Vector3 cameraTranslate = { 0.0f,1.9f,-6.49f };
 	Vector3 cameraRotate = { 0.26f,0.0f,0.0f };
 
-	Sphere sphere = { {0.0f,0.0f,0.0f},0.5f };
-
 	AABB aabb{
 		.min{-0.5f,-0.5f,-0.5f},
-		.max{0.0f,0.0f,0.0f},
+		.max{0.5f,0.5f,0.5f},
+		.color{WHITE},
+	};
+	Segment segment{
+		.origin{-0.7f,0.3f,0.0f},
+		.diff{2.0f,-0.5f,0.0f},
 		.color{WHITE},
 	};
 
@@ -110,27 +115,30 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		Matrix4x4 viewProjectionMatrix = Multiply(viewMatrix, projectionMatrix);
 		Matrix4x4 viewportMatrix = MakeViewportMatrix(0.0f, 0.0f, 1280.0f, 720.0f, 0.0f, 1.0f);
 
+		if (IsCollision(aabb, segment)) {
+			aabb.color = RED;
+		} else {
+			aabb.color = WHITE;
+		}
+
 		ImGui::Begin("Window");
 		ImGui::DragFloat3("CameraTranslate", &cameraTranslate.x, 0.01f);
 		ImGui::DragFloat3("CameraRotate", &cameraRotate.x, 0.01f);
 		ImGui::DragFloat3("aabb.min", &aabb.min.x, 0.01f);
 		ImGui::DragFloat3("aabb.max", &aabb.max.x, 0.01f);
-		ImGui::DragFloat3("sphere.center", &sphere.center.x, 0.01f);
-		ImGui::DragFloat("sphere.radius", &sphere.radius, 0.01f);
+		ImGui::DragFloat3("segment.origin", &segment.origin.x, 0.01f);
+		ImGui::DragFloat3("segment.diff", &segment.diff.x, 0.01f);
 		ImGui::End();
 
-		aabb.min.x = (std::fmin)(aabb.min.x, aabb.max.x);
-		aabb.max.x = (std::fmax)(aabb.min.x, aabb.max.x);
-		aabb.min.y = (std::fmin)(aabb.min.y, aabb.max.y);
-		aabb.max.y = (std::fmax)(aabb.min.y, aabb.max.y);
-		aabb.min.z = (std::fmin)(aabb.min.z, aabb.max.z);
-		aabb.max.z = (std::fmax)(aabb.min.z, aabb.max.z);
+		aabb.min.x = min(aabb.min.x, aabb.max.x);
+		aabb.max.x = max(aabb.min.x, aabb.max.x);
+		aabb.min.y = min(aabb.min.y, aabb.max.y);
+		aabb.max.y = max(aabb.min.y, aabb.max.y);
+		aabb.min.z = min(aabb.min.z, aabb.max.z);
+		aabb.max.z = max(aabb.min.z, aabb.max.z);
 
-		if (IsCollision(aabb, sphere)) {
-			aabb.color = RED;
-		} else {
-			aabb.color = WHITE;
-		}
+		Vector3 start = Transform(Transform(segment.origin, viewProjectionMatrix), viewportMatrix);
+		Vector3 end = Transform(Transform(Add(segment.origin, segment.diff), viewProjectionMatrix), viewportMatrix);
 
 		///
 		/// ↑更新処理ここまで
@@ -142,9 +150,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
-		DrawSphere(sphere, viewProjectionMatrix, viewportMatrix, WHITE);
-
 		DrawAABB(aabb, viewProjectionMatrix, viewportMatrix, aabb.color);
+
+		Novice::DrawLine(int(start.x), int(start.y), int(end.x), int(end.y), segment.color);
 
 		///
 		/// ↑描画処理ここまで
@@ -461,6 +469,36 @@ bool IsCollision(const AABB& aabb, const Sphere& sphere) {
 	// 距離が半径よりも小さければ衝突
 	if (distance <= sphere.radius) {
 		return true;
+	}
+	return false;
+}
+
+bool IsCollision(const AABB& aabb, const Segment& segment) {
+
+	float txmin = (aabb.min.x - segment.origin.x) / segment.diff.x;
+	float txmax = (aabb.max.x - segment.origin.x) / segment.diff.x;
+
+	float tymin = (aabb.min.y - segment.origin.y) / segment.diff.y;
+	float tymax = (aabb.max.y - segment.origin.y) / segment.diff.y;
+
+	float tzmin = (aabb.min.z - segment.origin.z) / segment.diff.z;
+	float tzmax = (aabb.max.z - segment.origin.z) / segment.diff.z;
+
+	float tNearX = min(txmin, txmax);
+	float tFarX = max(txmin, txmax);
+	float tNearY = min(tymin, tymax);
+	float tFarY = max(tymin, tymax);
+	float tNearZ = min(tzmin, tzmax);
+	float tFarZ = max(tzmin, tzmax);
+
+	// AABBとの衝突点(貫通点)のtが小さい方
+	float tmin = max(max(tNearX, tNearY), tNearZ);
+	// AABBとの衝突点(貫通点)のtが大きい方
+	float tmax = min(min(tFarX, tFarY), tFarZ);
+	if (tmin <= tmax) {
+		if (tmin >= 0.0f && tmax <= 1.0f) {
+			return true;
+		}
 	}
 	return false;
 }

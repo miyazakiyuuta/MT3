@@ -48,6 +48,8 @@ Vector3 Project(const Vector3& v1, const Vector3& v2);
 Vector3 ClosestPoint(const Vector3& point, const Segment& segment);
 Vector3 Perpendicular(const Vector3& vector);
 
+Vector3 Lerp(const Vector3 v1, const Vector3& v2, float t);
+
 bool IsCollision(const Sphere& s1, const Sphere& s2);
 bool IsCollision(const Sphere& sphere, const Plane& plane);
 bool IsCollision(const Segment& segment, const Plane& plane);
@@ -62,6 +64,9 @@ void DrawPlane(const Plane& plane, const Matrix4x4& viewProjectionMatrix, const 
 void DrawTriangle(const Triangle& triangle, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 
+void DrawBezier(const Vector3& controlPoint0, const Vector3& controlPoint1, const Vector3& controlPoint2,
+	const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
+
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
@@ -69,8 +74,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Novice::Initialize(kWindowTitle, kWindowWidth, kWindowHeight);
 
 	// キー入力結果を受け取る箱
-	char keys[256] = {0};
-	char preKeys[256] = {0};
+	char keys[256] = { 0 };
+	char preKeys[256] = { 0 };
+
+	int mouseX;
+	int mouseY;
+	int prevMouseX = 0;
+	int prevMouseY = 0;
+
+	Vector3 cameraTranslate = { 0.0f,1.9f,-6.49f };
+	Vector3 cameraRotate = { 0.26f,0.0f,0.0f };
+
+	Vector3 controlPoints[3] = {
+		{-0.8f,0.58f,1.0f},
+		{1.76f,1.0f,-0.3f},
+		{0.94f,-0.7f,2.3f},
+	};
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
@@ -85,7 +104,46 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		/// ↓更新処理ここから
 		///
 
+		Matrix4x4 cameraMatrix = MakeAffineMatrix({ 1.0f,1.0f,1.0f }, cameraRotate, cameraTranslate);
+		Matrix4x4 viewMatrix = Inverse(cameraMatrix);
+		Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(3.14f / 4.0f, 1280.0f / 720.0f, 0.1f, 1000.0f);
+		Matrix4x4 viewProjectionMatrix = Multiply(viewMatrix, projectionMatrix);
+		Matrix4x4 viewportMatrix = MakeViewportMatrix(0.0f, 0.0f, 1280.0f, 720.0f, 0.0f, 1.0f);
 
+		// カメラ
+		Novice::GetMousePosition(&mouseX, &mouseY);
+		if (Novice::IsPressMouse(1)) {
+
+			// マウスの移動量(
+			int deltaX = mouseX - prevMouseX;
+			int deltaY = mouseY - prevMouseY;
+			// 感度
+			float sensitivity = 0.001f;
+			// カメラの回転に反映
+			cameraRotate.y += float(deltaX) * sensitivity;
+			cameraRotate.x += float(deltaY) * sensitivity;
+		}
+		// 現在のマウス位置を保存
+		prevMouseX = mouseX;
+		prevMouseY = mouseY;
+
+		float speed = float(Novice::GetWheel()) * 0.01f;
+		Vector3 direction = { cameraRotate.y,cameraRotate.z,cameraRotate.x };
+
+		cameraTranslate = Add(cameraTranslate, Multiply(speed, direction));
+
+		ImGui::Begin("Window");
+		ImGui::DragFloat3("controlPoint[0]", &controlPoints[0].x, 0.01f);
+		ImGui::DragFloat3("controlPoint[1]", &controlPoints[1].x, 0.01f);
+		ImGui::DragFloat3("controlPoint[2]", &controlPoints[2].x, 0.01f);
+		ImGui::End();
+
+		Sphere screenPoints[3];
+		for (int i = 0; i < 3; i++) {
+			//screenPoints[i].center = Transform(Transform(controlPoints[0], viewProjectionMatrix), viewportMatrix);
+			screenPoints[i].center = controlPoints[i];
+			screenPoints[i].radius = 0.02f;
+		}
 
 		///
 		/// ↑更新処理ここまで
@@ -95,7 +153,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		/// ↓描画処理ここから
 		///
 
+		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
+		for (int i = 0; i < 3; i++) {
+			DrawSphere(screenPoints[i], viewProjectionMatrix, viewportMatrix, BLACK);
+		}
+
+		DrawBezier(controlPoints[0], controlPoints[1], controlPoints[2],
+			viewProjectionMatrix, viewportMatrix, BLUE);
 
 		///
 		/// ↑描画処理ここまで
@@ -152,6 +217,14 @@ Vector3 Perpendicular(const Vector3& vector) {
 		return { -vector.y,vector.x,0.0f };
 	}
 	return { 0.0f,-vector.z,vector.y };
+}
+
+Vector3 Lerp(const Vector3 v1, const Vector3& v2, float t) {
+	Vector3 result;
+	result.x = v1.x * (1.0f - t) + v2.x * t;
+	result.y = v1.y * (1.0f - t) + v2.y * t;
+	result.z = v1.z * (1.0f - t) + v2.z * t;
+	return result;
 }
 
 bool IsCollision(const Sphere& s1, const Sphere& s2) {
@@ -446,3 +519,18 @@ void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Mat
 	}
 }
 
+void DrawBezier(const Vector3& controlPoint0, const Vector3& controlPoint1, const Vector3& controlPoint2,
+	const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color) {
+
+	const int division = 100;
+	Vector3 preP = controlPoint0;
+	for (int i = 0; i < division; i++) {
+		Vector3 p0p1 = Lerp(controlPoint0, controlPoint1, float(i) / float(division));
+		Vector3 p1p2 = Lerp(controlPoint1, controlPoint2, float(i) / float(division));
+		Vector3 p = Lerp(p0p1, p1p2, float(i) / float(division));
+		Vector3 start = Transform(Transform(p, viewProjectionMatrix), viewportMatrix);
+		Vector3 end = Transform(Transform(preP, viewProjectionMatrix), viewportMatrix);
+		Novice::DrawLine(int(start.x), int(start.y), int(end.x), int(end.y), color);
+		preP = p;
+	}
+}

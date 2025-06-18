@@ -85,11 +85,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Vector3 cameraTranslate = { 0.0f,1.9f,-6.49f };
 	Vector3 cameraRotate = { 0.26f,0.0f,0.0f };
 
-	Vector3 controlPoints[3] = {
-		{-0.8f,0.58f,1.0f},
-		{1.76f,1.0f,-0.3f},
-		{0.94f,-0.7f,2.3f},
+	Vector3 translates[3] = {
+		{0.2f,1.0f,0.0f},
+		{0.4f,0.0f,0.0f},
+		{0.3f,0.0f,0.0f},
 	};
+	Vector3 rotates[3] = {
+		{0.0f,0.0f,-6.8f},
+		{0.4f,0.0f,0.0f},
+		{0.0f,0.0f,0.0f},
+	};
+	Vector3 scales[3] = {
+		{1.0f,1.0f,1.0f},
+		{1.0f,1.0f,1.0f},
+		{1.0f,1.0f,1.0f}
+	};
+	unsigned int color[3] = { RED,GREEN,BLUE };
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
@@ -133,16 +144,32 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		cameraTranslate = Add(cameraTranslate, Multiply(speed, direction));
 
 		ImGui::Begin("Window");
-		ImGui::DragFloat3("controlPoint[0]", &controlPoints[0].x, 0.01f);
-		ImGui::DragFloat3("controlPoint[1]", &controlPoints[1].x, 0.01f);
-		ImGui::DragFloat3("controlPoint[2]", &controlPoints[2].x, 0.01f);
+		ImGui::DragFloat3("translates[0]", &translates[0].x, 0.01f);
+		ImGui::DragFloat3("rotates[0]", &rotates[0].x, 0.01f);
+		ImGui::DragFloat3("scales[0]", &scales[0].x, 0.01f);
+		ImGui::DragFloat3("translates[1]", &translates[1].x, 0.01f);
+		ImGui::DragFloat3("rotates[1]", &rotates[1].x, 0.01f);
+		ImGui::DragFloat3("scales[1]", &scales[1].x, 0.01f);
+		ImGui::DragFloat3("translates[2]", &translates[2].x, 0.01f);
+		ImGui::DragFloat3("rotates[2]", &rotates[2].x, 0.01f);
+		ImGui::DragFloat3("scales[2]", &scales[2].x, 0.01f);
 		ImGui::End();
 
-		Sphere screenPoints[3];
+		Matrix4x4 worldMatrix[3];
+		Matrix4x4 worldViewProjectionMatrix[3];
 		for (int i = 0; i < 3; i++) {
-			//screenPoints[i].center = Transform(Transform(controlPoints[0], viewProjectionMatrix), viewportMatrix);
-			screenPoints[i].center = controlPoints[i];
-			screenPoints[i].radius = 0.02f;
+			worldMatrix[i] = MakeAffineMatrix(scales[i], rotates[i], translates[i]);
+			if (i != 0) {
+				worldMatrix[i] = Multiply(worldMatrix[i], worldMatrix[i - 1]);
+			}
+			worldViewProjectionMatrix[i] = Multiply(worldMatrix[i], viewProjectionMatrix);
+		}
+
+		Vector3 vertexes[3];
+		Vector3 screenVertices[3];
+		for (int i = 0; i < 3; i++) {
+			vertexes[i] = Transform({ 0.0f,0.0f,0.0f }, worldViewProjectionMatrix[i]);
+			screenVertices[i] = Transform(vertexes[i], viewportMatrix);
 		}
 
 		///
@@ -155,12 +182,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
-		for (int i = 0; i < 3; i++) {
-			DrawSphere(screenPoints[i], viewProjectionMatrix, viewportMatrix, BLACK);
-		}
+		Novice::DrawLine(int(screenVertices[0].x), int(screenVertices[0].y), int(screenVertices[1].x), int(screenVertices[1].y), WHITE);
+		Novice::DrawLine(int(screenVertices[1].x), int(screenVertices[1].y), int(screenVertices[2].x), int(screenVertices[2].y), WHITE);
 
-		DrawBezier(controlPoints[0], controlPoints[1], controlPoints[2],
-			viewProjectionMatrix, viewportMatrix, BLUE);
+		for (int i = 0; i < 3; i++) {
+			DrawSphere({ {0.0f,0.0f,0.0f},0.1f }, worldViewProjectionMatrix[i], viewportMatrix, color[i]);
+		}
 
 		///
 		/// ↑描画処理ここまで

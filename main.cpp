@@ -39,8 +39,15 @@ struct AABB {
 	uint32_t color;
 };
 
+struct OBB {
+	Vector3 center; //!< 中心点
+	Vector3 orientations[3]; //!< 座標軸。正規化・直交必須
+	Vector3 size; //!< 座標軸方向の長さの半分。中心から面までの距離
+};
+
 static const int kRowHeight = 20;
 static const int kColumnWidth = 60;
+
 void VectorScreenPrintf(int x, int y, const Vector3& vector, const char* label);
 void MatrixScreenPrintf(int x, int y, const Matrix4x4& matrix, const char type[]);
 
@@ -55,12 +62,14 @@ bool IsCollision(const Triangle& triangle, const Segment& segment);
 bool IsCollision(const AABB& aabb1, const AABB& aabb2);
 bool IsCollision(const AABB& aabb, const Sphere& sphere);
 bool IsCollision(const AABB& aabb, const Segment& segment);
+bool IsCollision(const OBB& obb, const Sphere& sphere);
 
 void DrawGrid(const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix);
 void DrawSphere(const Sphere& sphere, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, unsigned int color);
 void DrawPlane(const Plane& plane, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 void DrawTriangle(const Triangle& triangle, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
+void DrawOBB(const OBB& obb, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
@@ -69,8 +78,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Novice::Initialize(kWindowTitle, kWindowWidth, kWindowHeight);
 
 	// キー入力結果を受け取る箱
-	char keys[256] = {0};
-	char preKeys[256] = {0};
+	char keys[256] = { 0 };
+	char preKeys[256] = { 0 };
+
+	Vector3 a{ 0.2f,1.0f,0.0f };
+	Vector3 b{ 2.4f,3.1f,1.2f };
+	Vector3 c = a + b;
+	Vector3 d = a - b;
+	Vector3 e = a * 2.4f;
+	Vector3 rotate{ 0.4f,1.43f,-0.8f };
+	Matrix4x4 rotateXMatrix = MakeRotateXMatrix(rotate.x);
+	Matrix4x4 rotateYMatrix = MakeRotateYMatrix(rotate.y);
+	Matrix4x4 rotateZMatrix = MakeRotateZMatrix(rotate.z);
+	Matrix4x4 rotateMatrix = rotateXMatrix * rotateYMatrix * rotateZMatrix;
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
@@ -85,7 +105,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		/// ↓更新処理ここから
 		///
 
-
+		ImGui::Begin("Window");
+		ImGui::Text("c:%f,%f,%f", c.x, c.y, c.z);
+		ImGui::Text("d:%f,%f,%f", d.x, d.y, d.z);
+		ImGui::Text("e:%f,%f,%f", e.x, e.y, e.z);
+		ImGui::Text(
+			"matrix:\n%f,%f,%f,%f\n%f,%f,%f,%f\n%f,%f,%f,%f\n%f,%f,%f,%f\n",
+			rotateMatrix.m[0][0], rotateMatrix.m[0][1], rotateMatrix.m[0][2], rotateMatrix.m[0][3],
+			rotateMatrix.m[1][0], rotateMatrix.m[1][1], rotateMatrix.m[1][2], rotateMatrix.m[1][3],
+			rotateMatrix.m[2][0], rotateMatrix.m[2][1], rotateMatrix.m[2][2], rotateMatrix.m[2][3],
+			rotateMatrix.m[3][0], rotateMatrix.m[3][1], rotateMatrix.m[3][2], rotateMatrix.m[3][3]);
+		ImGui::End();
 
 		///
 		/// ↑更新処理ここまで
@@ -282,6 +312,12 @@ bool IsCollision(const AABB& aabb, const Segment& segment) {
 	return false;
 }
 
+bool IsCollision(const OBB& obb, const Sphere& sphere) {
+	obb;
+	sphere;
+	return false;
+}
+
 void DrawGrid(const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix) {
 	const float kGridHalfWidth = 2.0f; // Gridの半分の幅
 	const int kSubdivision = 10; // 分割数
@@ -417,32 +453,74 @@ void DrawTriangle(const Triangle& triangle, const Matrix4x4& viewProjectionMatri
 }
 
 void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color) {
-	Vector3 vertex[8];
-	vertex[0] = aabb.min;
-	vertex[1] = { aabb.max.x,aabb.min.y,aabb.min.z };
-	vertex[2] = { aabb.max.x,aabb.min.y,aabb.max.z };
-	vertex[3] = { aabb.min.x,aabb.min.y,aabb.max.z };
-	vertex[4] = { aabb.min.x,aabb.max.y,aabb.min.z };
-	vertex[5] = { aabb.max.x,aabb.max.y,aabb.min.z };
-	vertex[6] = aabb.max;
-	vertex[7] = { aabb.min.x,aabb.max.y,aabb.max.z };
-	Vector3 screenVertex[8];
+	Vector3 vertexes[8];
+	vertexes[0] = aabb.min;
+	vertexes[1] = { aabb.max.x,aabb.min.y,aabb.min.z };
+	vertexes[2] = { aabb.max.x,aabb.min.y,aabb.max.z };
+	vertexes[3] = { aabb.min.x,aabb.min.y,aabb.max.z };
+	vertexes[4] = { aabb.min.x,aabb.max.y,aabb.min.z };
+	vertexes[5] = { aabb.max.x,aabb.max.y,aabb.min.z };
+	vertexes[6] = aabb.max;
+	vertexes[7] = { aabb.min.x,aabb.max.y,aabb.max.z };
+	Vector3 screenVertexes[8];
 	for (int i = 0; i < 8; i++) {
-		screenVertex[i] = Transform(Transform(vertex[i], viewProjectionMatrix), viewportMatrix);
+		screenVertexes[i] = Transform(Transform(vertexes[i], viewProjectionMatrix), viewportMatrix);
 	}
 	for (int i = 0; i < 4; i++) {
 		Novice::DrawLine(
-			int(screenVertex[i].x), int(screenVertex[i].y),
-			int(screenVertex[(i + 1) % 4].x), int(screenVertex[(i + 1) % 4].y),
+			int(screenVertexes[i].x), int(screenVertexes[i].y),
+			int(screenVertexes[(i + 1) % 4].x), int(screenVertexes[(i + 1) % 4].y),
 			color);
 		Novice::DrawLine(
-			int(screenVertex[i + 4].x), int(screenVertex[i + 4].y),
-			int(screenVertex[(i + 1) % 4 + 4].x), int(screenVertex[(i + 1) % 4 + 4].y),
+			int(screenVertexes[i + 4].x), int(screenVertexes[i + 4].y),
+			int(screenVertexes[(i + 1) % 4 + 4].x), int(screenVertexes[(i + 1) % 4 + 4].y),
 			color);
 		Novice::DrawLine(
-			int(screenVertex[i].x), int(screenVertex[i].y),
-			int(screenVertex[i + 4].x), int(screenVertex[i + 4].y),
+			int(screenVertexes[i].x), int(screenVertexes[i].y),
+			int(screenVertexes[i + 4].x), int(screenVertexes[i + 4].y),
 			color);
 	}
 }
 
+void DrawOBB(const OBB& obb, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color) {
+	Vector3 xAxis = Multiply(obb.size.x, obb.orientations[0]);
+	Vector3 yAxis = Multiply(obb.size.y, obb.orientations[1]);
+	Vector3 zAxis = Multiply(obb.size.z, obb.orientations[2]);
+	Vector3 vertexes[8];
+	vertexes[0] = Add(obb.center, Add(xAxis, Add(yAxis, zAxis)));
+	vertexes[1] = Add(obb.center, Add(xAxis, Subtract(yAxis, zAxis)));
+	vertexes[2] = Add(obb.center, Subtract(xAxis, Add(yAxis, zAxis)));
+	vertexes[3] = Add(obb.center, Subtract(xAxis, Subtract(yAxis, zAxis)));
+	vertexes[4] = Subtract(obb.center, Add(xAxis, Add(yAxis, zAxis)));
+	vertexes[5] = Subtract(obb.center, Subtract(xAxis, Add(yAxis, zAxis)));
+	vertexes[6] = Subtract(obb.center, Add(xAxis, Subtract(yAxis, zAxis)));
+	vertexes[7] = Subtract(obb.center, Subtract(xAxis, Subtract(yAxis, zAxis)));
+
+	vertexes[0] = Subtract(obb.center, Add(xAxis, Subtract(yAxis, zAxis)));
+	vertexes[1] = Subtract(obb.center, Add(xAxis, Add(yAxis, zAxis)));
+	vertexes[2] = Add(obb.center, Add(xAxis, Add(yAxis, zAxis)));
+	vertexes[3] = Add(obb.center, Add(xAxis, Subtract(yAxis, zAxis)));
+	vertexes[4] = Subtract(obb.center, Subtract(xAxis, Subtract(yAxis, zAxis)));
+	vertexes[5] = Subtract(obb.center, Subtract(xAxis, Add(yAxis, zAxis)));
+	vertexes[6] = Add(obb.center, Subtract(xAxis, Add(yAxis, zAxis)));
+	vertexes[7] = Add(obb.center, Subtract(xAxis, Subtract(yAxis, zAxis)));
+	Vector3 screenVertexes[8];
+	for (int i = 0; i < 8; i++) {
+		screenVertexes[i] = Transform(Transform(vertexes[i], viewProjectionMatrix), viewportMatrix);
+	}
+	for (int i = 0; i < 4; i++) {
+		Novice::DrawLine(
+			int(screenVertexes[i].x), int(screenVertexes[i].y),
+			int(screenVertexes[(i + 1) % 4].x), int(screenVertexes[(i + 1) % 4].y),
+			color);
+		Novice::DrawLine(
+			int(screenVertexes[i + 4].x), int(screenVertexes[i + 4].y),
+			int(screenVertexes[(i + 1) % 4 + 4].x), int(screenVertexes[(i + 1) % 4 + 4].y),
+			color);
+		Novice::DrawLine(
+			int(screenVertexes[i].x), int(screenVertexes[i].y),
+			int(screenVertexes[i + 4].x), int(screenVertexes[i + 4].y),
+			color);
+	}
+
+}

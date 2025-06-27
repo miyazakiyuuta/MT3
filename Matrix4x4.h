@@ -44,3 +44,8 @@ namespace MatrixMath {
 	Matrix4x4 MakeViewportMatrix(float left, float top, float width, float height, float minDepth, float maxDepth);
 
 }
+
+// inline
+inline Matrix4x4 operator+(const Matrix4x4& m1, const Matrix4x4& m2) { return MatrixMath::Add(m1, m2); }
+inline Matrix4x4 operator-(const Matrix4x4& m1, const Matrix4x4& m2) { return MatrixMath::Subtract(m1, m2); }
+inline Matrix4x4 operator*(const Matrix4x4& m1, const Matrix4x4& m2) { return MatrixMath::Multiply(m1, m2); }

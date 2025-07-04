@@ -164,7 +164,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		cameraTranslate = Add(cameraTranslate, Multiply(speed, cameraDirection));
 
 		ImGui::Begin("Window");
-		ImGui::Checkbox("start",&isStart);
+		if (ImGui::Button("start")) {
+			isStart = !isStart;
+		}
 		ImGui::End();
 
 		if(isStart){

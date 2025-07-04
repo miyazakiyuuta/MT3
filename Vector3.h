@@ -4,6 +4,31 @@ struct Vector3 {
 	float x;
 	float y;
 	float z;
+
+	inline Vector3& operator+=(const Vector3& v) {
+		x += v.x;
+		y += v.y;
+		z += v.z;
+		return *this;
+	}
+	inline Vector3& operator-=(const Vector3& v) { 
+		x -= v.x; 
+		y -= v.y; 
+		z -= v.z; 
+		return *this; 
+	}
+	inline Vector3& operator*=(float s) { 
+		x *= s;
+		y *= s;
+		z *= s;
+		return *this;
+	}
+	inline Vector3& operator/=(float s) {
+		x /= s;
+		y /= s;
+		z /= s;
+		return *this;
+	}
 };
 
 namespace Vector3Math {
@@ -31,3 +56,4 @@ inline Vector3 operator-(const Vector3& v1, const Vector3& v2) { return Vector3M
 inline Vector3 operator*(float s, const Vector3& v) { return Vector3Math::Multiply(s, v); }
 inline Vector3 operator*(Vector3& v, float s) { return s * v; }
 inline Vector3 operator/(const Vector3& v, float s) { return Vector3Math::Multiply(1.0f / s, v); }
+

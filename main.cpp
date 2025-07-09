@@ -106,22 +106,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Vector3 cameraTranslate = { 0.0f,1.9f,-6.49f };
 	Vector3 cameraRotate = { 0.26f,0.0f,0.0f };
 
-	Spring spring{};
-	spring.anchor = { 0.0f,0.0f,0.0f };
-	spring.naturalLength = 1.0f;
-	spring.stiffness = 100.0f;
-	spring.dampingCoefficient = 2.0f;
-
-	Ball ball{};
-	ball.position = { 1.2f,0.0f,0.0f };
-	ball.mass = 2.0f;
-	ball.radius = 0.05f;
-	ball.color = BLUE;
-
 	float deltaTime = 1.0f / 60.0f;
 
+	float angularVelocity = 3.14f;
+	float angle = 0.0f;
+
+	Sphere sphere;
+	sphere.center = {
+		std::cos(angle) * 0.8f,
+		std::sin(angle) * 0.8f,
+		0.0f
+	};
+	sphere.radius = 0.1f;
+
 	bool isStart = false;
-	
+
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
 		// フレームの開始
@@ -134,7 +133,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///
 		/// ↓更新処理ここから
 		///
-		
+
 		Matrix4x4 cameraMatrix = MakeAffineMatrix({ 1.0f,1.0f,1.0f }, cameraRotate, cameraTranslate);
 		Matrix4x4 viewMatrix = Inverse(cameraMatrix);
 		Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(3.14f / 4.0f, 1280.0f / 720.0f, 0.1f, 1000.0f);
@@ -169,32 +168,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 		ImGui::End();
 
-		if(isStart){
-			Vector3 diff = ball.position - spring.anchor;
-			float length = Length(diff);
-			if (length != 0.0f) {
-				Vector3 direction = Normalize(diff); // 正規化したバネからボールまでの向き
-				Vector3 restPosition = spring.anchor + direction * spring.naturalLength; // 上記の向きに長さをかけてバネの端の位置に加算した位置
-				Vector3 displacement = length * (ball.position - restPosition); // 
-				Vector3 restoringForce = -spring.stiffness * displacement;
-				// 減衰抵抗を計算する
-				Vector3 dampingForce = -spring.dampingCoefficient * ball.velocity;
-				// 減衰抵抗も加味して、物体にかかる力を決定する
-				Vector3 force = restoringForce + dampingForce;
-				ball.acceleration = force / ball.mass;
-			}
-			// 加速度も速度もどちらも秒を基準とした値である
-		    // それが、1/60秒間(deltaTime)適用されたと考える
-			ball.velocity += ball.acceleration * deltaTime;
-			ball.position += ball.velocity * deltaTime;
-			/*if (Length(ball.velocity) <= 0.0f) {
-				isStart = false;
-			}*/
+		if (isStart) {
+			angle += angularVelocity * deltaTime;
+			sphere.center.x = std::cos(angle) * 0.8f;
+			sphere.center.y = std::sin(angle) * 0.8f;
+			sphere.center.z = 0.0f;
 		}
-		
-
-		Vector3 startScreen = Transform(Transform(spring.anchor, viewProjectionMatrix), viewportMatrix);
-		Vector3 screenPos = Transform(Transform(ball.position, viewProjectionMatrix), viewportMatrix);
 
 		///
 		/// ↑更新処理ここまで
@@ -206,9 +185,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
-		DrawSphere({ ball.position,0.1f }, viewProjectionMatrix, viewportMatrix, BLUE);
-
-		Novice::DrawLine(int(startScreen.x), int(startScreen.y), int(screenPos.x), int(screenPos.y), WHITE);
+		DrawSphere(sphere, viewProjectionMatrix, viewportMatrix, WHITE);
 
 		///
 		/// ↑描画処理ここまで

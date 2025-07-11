@@ -62,6 +62,14 @@ struct Ball {
 	unsigned int color; // ボールの色
 };
 
+struct Pendulum {
+	Vector3 anchor; // アンカーポイント。固定された端の位置
+	float length; // 紐の長さ
+	float angle; // 現在の角度
+	float angularVelocity; // 角速度w
+	float angularAcceleration; // 角度速度
+};
+
 static const int kRowHeight = 20;
 static const int kColumnWidth = 60;
 
@@ -102,21 +110,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	int mouseY;
 	int prevMouseX = 0;
 	int prevMouseY = 0;
-
+	
 	Vector3 cameraTranslate = { 0.0f,1.9f,-6.49f };
 	Vector3 cameraRotate = { 0.26f,0.0f,0.0f };
 
 	float deltaTime = 1.0f / 60.0f;
 
-	float angularVelocity = 3.14f;
-	float angle = 0.0f;
+	Pendulum pendulum;
+	pendulum.anchor = { 0.0f,1.0f,0.0f };
+	pendulum.length = 0.8f;
+	pendulum.angle = 0.7f;
+	pendulum.angularVelocity = 0.0f;
+	pendulum.angularAcceleration = 0.0f; 
 
-	Sphere sphere;
-	sphere.center = {
-		std::cos(angle) * 0.8f,
-		std::sin(angle) * 0.8f,
-		0.0f
-	};
+	Sphere sphere = {};
+	sphere.center.x = pendulum.anchor.x + std::sin(pendulum.angle) * pendulum.length;
+	sphere.center.y = pendulum.anchor.y - std::cos(pendulum.angle) * pendulum.length;
+	sphere.center.z = pendulum.anchor.z;
 	sphere.radius = 0.1f;
 
 	bool isStart = false;
@@ -168,12 +178,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 		ImGui::End();
 
-		if (isStart) {
-			angle += angularVelocity * deltaTime;
-			sphere.center.x = std::cos(angle) * 0.8f;
-			sphere.center.y = std::sin(angle) * 0.8f;
-			sphere.center.z = 0.0f;
+		if(isStart){
+			pendulum.angularAcceleration = -(9.8f / pendulum.length) * std::sin(pendulum.angle);
+			pendulum.angularVelocity += pendulum.angularAcceleration * deltaTime;
+			pendulum.angle += pendulum.angularVelocity * deltaTime;
+
+			sphere.center.x = pendulum.anchor.x + std::sin(pendulum.angle) * pendulum.length;
+			sphere.center.y = pendulum.anchor.y - std::cos(pendulum.angle) * pendulum.length;
+			sphere.center.z = pendulum.anchor.z;
 		}
+
+		Vector3 start = Transform(Transform(pendulum.anchor, viewProjectionMatrix), viewportMatrix);
+		Vector3 end = Transform(Transform(sphere.center, viewProjectionMatrix), viewportMatrix);
 
 		///
 		/// ↑更新処理ここまで
@@ -186,6 +202,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
 		DrawSphere(sphere, viewProjectionMatrix, viewportMatrix, WHITE);
+
+		Novice::DrawLine(int(start.x), int(start.y), int(end.x), int(end.y), WHITE);
 
 		///
 		/// ↑描画処理ここまで

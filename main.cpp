@@ -87,6 +87,7 @@ void MatrixScreenPrintf(int x, int y, const Matrix4x4& matrix, const char type[]
 Vector3 Project(const Vector3& v1, const Vector3& v2);
 Vector3 ClosestPoint(const Vector3& point, const Segment& segment);
 Vector3 Perpendicular(const Vector3& vector);
+Vector3 Reflect(const Vector3& input, const Vector3& normal);
 
 bool IsCollision(const Sphere& s1, const Sphere& s2);
 bool IsCollision(const Sphere& sphere, const Plane& plane);
@@ -126,21 +127,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	bool isStart = false;
 
-	ConicalPendulum conicalPendulum;
-	conicalPendulum.anchor = { 0.0f,1.0f,0.0f };
-	conicalPendulum.length = 0.8f;
-	conicalPendulum.halfApexAngle = 0.7f;
-	conicalPendulum.angle = 0.0f;
-	conicalPendulum.angularVelocity = 0.0f;
+	float e = 0.8f; // 反発係数
 
-	float radius = std::sin(conicalPendulum.halfApexAngle) * conicalPendulum.length;
-	float height = std::cos(conicalPendulum.halfApexAngle) * conicalPendulum.length;
+	Plane plane;
+	plane.normal = Normalize({ -0.2f,0.9f,-0.3f });
+	plane.distance = 0.0f;
 
-	Sphere sphere = {};
-	sphere.center.x = conicalPendulum.anchor.x + std::cos(conicalPendulum.angle) * radius;
-	sphere.center.y = conicalPendulum.anchor.y - height;
-	sphere.center.z = conicalPendulum.anchor.z - std::sin(conicalPendulum.angle) * radius;
-	sphere.radius = 0.1f;
+	Ball ball{};
+	ball.position = { 0.8f,1.2f,0.3f };
+	ball.mass = 2.0f;
+	ball.radius = 0.05f;
+	ball.color = WHITE;
+	ball.acceleration = { 0.0f,-9.8f,0.0f };
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
@@ -189,19 +187,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 		ImGui::End();
 
-		if (isStart) {
-			conicalPendulum.angularVelocity = std::sqrt(9.8f / (conicalPendulum.length * std::cos(conicalPendulum.halfApexAngle)));
-			conicalPendulum.angle += conicalPendulum.angularVelocity * deltaTime;
-
-			radius = std::sin(conicalPendulum.halfApexAngle) * conicalPendulum.length;
-			height = std::cos(conicalPendulum.halfApexAngle) * conicalPendulum.length;
-			sphere.center.x = conicalPendulum.anchor.x + std::cos(conicalPendulum.angle) * radius;
-			sphere.center.y = conicalPendulum.anchor.y - height;
-			sphere.center.z = conicalPendulum.anchor.z - std::sin(conicalPendulum.angle) * radius;
+		if(isStart){
+			ball.velocity += ball.acceleration * deltaTime;
+			ball.position += ball.velocity * deltaTime;
+			if (IsCollision(Sphere{ ball.position,ball.radius }, plane)) {
+				Vector3 reflected = Reflect(ball.velocity, plane.normal);
+				Vector3 projectToNormal = Project(reflected, plane.normal);
+				Vector3 movingDirection = reflected - projectToNormal;
+				ball.velocity = projectToNormal * e + movingDirection;
+			}
 		}
-
-		Vector3 start = Transform(Transform(conicalPendulum.anchor, viewProjectionMatrix), viewportMatrix);
-		Vector3 end = Transform(Transform(sphere.center, viewProjectionMatrix), viewportMatrix);
 
 		///
 		/// ↑更新処理ここまで
@@ -213,9 +208,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
-		DrawSphere(sphere, viewProjectionMatrix, viewportMatrix, WHITE);
+		DrawPlane(plane, viewProjectionMatrix, viewportMatrix, WHITE);
 
-		Novice::DrawLine(int(start.x), int(start.y), int(end.x), int(end.y), WHITE);
+		DrawSphere(Sphere{ ball.position,ball.radius }, viewProjectionMatrix, viewportMatrix, WHITE);
 
 		///
 		/// ↑描画処理ここまで
@@ -272,6 +267,10 @@ Vector3 Perpendicular(const Vector3& vector) {
 		return { -vector.y,vector.x,0.0f };
 	}
 	return { 0.0f,-vector.z,vector.y };
+}
+
+Vector3 Reflect(const Vector3& input, const Vector3& normal) {
+	return input - 2 * Dot(input, normal) * normal;
 }
 
 bool IsCollision(const Sphere& s1, const Sphere& s2) {

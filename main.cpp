@@ -70,6 +70,14 @@ struct Pendulum {
 	float angularAcceleration; // 角度速度
 };
 
+struct ConicalPendulum {
+	Vector3 anchor; // アンカーポイント。固定された端の位置
+	float length; // 紐の長さ
+	float halfApexAngle; // 円錐の頂角の半分
+	float angle; // 現在の角度
+	float angularVelocity; // 角速度w
+};
+
 static const int kRowHeight = 20;
 static const int kColumnWidth = 60;
 
@@ -110,26 +118,29 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	int mouseY;
 	int prevMouseX = 0;
 	int prevMouseY = 0;
-	
+
 	Vector3 cameraTranslate = { 0.0f,1.9f,-6.49f };
 	Vector3 cameraRotate = { 0.26f,0.0f,0.0f };
 
 	float deltaTime = 1.0f / 60.0f;
 
-	Pendulum pendulum;
-	pendulum.anchor = { 0.0f,1.0f,0.0f };
-	pendulum.length = 0.8f;
-	pendulum.angle = 0.7f;
-	pendulum.angularVelocity = 0.0f;
-	pendulum.angularAcceleration = 0.0f; 
+	bool isStart = false;
+
+	ConicalPendulum conicalPendulum;
+	conicalPendulum.anchor = { 0.0f,1.0f,0.0f };
+	conicalPendulum.length = 0.8f;
+	conicalPendulum.halfApexAngle = 0.7f;
+	conicalPendulum.angle = 0.0f;
+	conicalPendulum.angularVelocity = 0.0f;
+
+	float radius = std::sin(conicalPendulum.halfApexAngle) * conicalPendulum.length;
+	float height = std::cos(conicalPendulum.halfApexAngle) * conicalPendulum.length;
 
 	Sphere sphere = {};
-	sphere.center.x = pendulum.anchor.x + std::sin(pendulum.angle) * pendulum.length;
-	sphere.center.y = pendulum.anchor.y - std::cos(pendulum.angle) * pendulum.length;
-	sphere.center.z = pendulum.anchor.z;
+	sphere.center.x = conicalPendulum.anchor.x + std::cos(conicalPendulum.angle) * radius;
+	sphere.center.y = conicalPendulum.anchor.y - height;
+	sphere.center.z = conicalPendulum.anchor.z - std::sin(conicalPendulum.angle) * radius;
 	sphere.radius = 0.1f;
-
-	bool isStart = false;
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
@@ -178,17 +189,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 		ImGui::End();
 
-		if(isStart){
-			pendulum.angularAcceleration = -(9.8f / pendulum.length) * std::sin(pendulum.angle);
-			pendulum.angularVelocity += pendulum.angularAcceleration * deltaTime;
-			pendulum.angle += pendulum.angularVelocity * deltaTime;
+		if (isStart) {
+			conicalPendulum.angularVelocity = std::sqrt(9.8f / (conicalPendulum.length * std::cos(conicalPendulum.halfApexAngle)));
+			conicalPendulum.angle += conicalPendulum.angularVelocity * deltaTime;
 
-			sphere.center.x = pendulum.anchor.x + std::sin(pendulum.angle) * pendulum.length;
-			sphere.center.y = pendulum.anchor.y - std::cos(pendulum.angle) * pendulum.length;
-			sphere.center.z = pendulum.anchor.z;
+			radius = std::sin(conicalPendulum.halfApexAngle) * conicalPendulum.length;
+			height = std::cos(conicalPendulum.halfApexAngle) * conicalPendulum.length;
+			sphere.center.x = conicalPendulum.anchor.x + std::cos(conicalPendulum.angle) * radius;
+			sphere.center.y = conicalPendulum.anchor.y - height;
+			sphere.center.z = conicalPendulum.anchor.z - std::sin(conicalPendulum.angle) * radius;
 		}
 
-		Vector3 start = Transform(Transform(pendulum.anchor, viewProjectionMatrix), viewportMatrix);
+		Vector3 start = Transform(Transform(conicalPendulum.anchor, viewProjectionMatrix), viewportMatrix);
 		Vector3 end = Transform(Transform(sphere.center, viewProjectionMatrix), viewportMatrix);
 
 		///
